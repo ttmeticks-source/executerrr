@@ -1,0 +1,4 @@
+mkdir -p ~/bozo/{Core,Tui,native,scripts}
+cd ~/bozo
+dotnet new console -o . --force
+dotnet add package Spectre.Console
