@@ -1,0 +1,6 @@
+bin/
+obj/
+*.dylib
+.DS_Store
+.vs/
+*.user
