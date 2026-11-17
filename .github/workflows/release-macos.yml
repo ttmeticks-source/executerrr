@@ -1,0 +1,45 @@
+name: Build macOS releases
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build Intel release
+        run: |
+          dotnet publish bozo.csproj -c Release -r osx-x64 --self-contained true \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o publish-intel
+          chmod +x publish-intel/bozo
+          tar -czf bozo-macos-intel.tar.gz -C publish-intel bozo
+
+      - name: Build Apple Silicon release
+        run: |
+          dotnet publish bozo.csproj -c Release -r osx-arm64 --self-contained true \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o publish-arm64
+          chmod +x publish-arm64/bozo
+          tar -czf bozo-macos-apple-silicon.tar.gz -C publish-arm64 bozo
+
+      - name: Attach both builds to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bozo-macos-intel.tar.gz
+            bozo-macos-apple-silicon.tar.gz
+          generate_release_notes: true
