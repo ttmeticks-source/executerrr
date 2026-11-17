@@ -1,32 +1,47 @@
 #!/usr/bin/env bash
-# Bozo Key Approval — macOS installer
+# Bozo Key Approval — macOS one-line installer
 set -euo pipefail
 
+REPO="ttmeticks-source/executerrr"
+REF="safe-key-approval-app"
 DIR="${BOZO_DIR:-$HOME/bozo-key-approval}"
-REPO="${BOZO_REPO:-ttmeticks-source/executerrr}"
-REF="${BOZO_REF:-safe-key-approval-app}"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 
-[ "$(uname -s)" = "Darwin" ] || die "macOS only."
-command -v git >/dev/null 2>&1 || die "git is required."
-command -v dotnet >/dev/null 2>&1 || die ".NET 8 SDK is required (https://dot.net)."
+[ "$(uname -s)" = "Darwin" ] || die "This installer is for macOS."
+command -v curl >/dev/null 2>&1 || die "curl is required."
 
-if [ -d "$DIR/.git" ]; then
-  git -C "$DIR" fetch origin "$REF"
-  git -C "$DIR" checkout "$REF"
-  git -C "$DIR" pull --ff-only origin "$REF"
+MODEL="$(sysctl -n hw.model 2>/dev/null || printf 'Unknown Mac')"
+if [ "$(sysctl -n hw.optional.arm64 2>/dev/null || printf '0')" = "1" ]; then
+  RID="osx-arm64"
+  ARCH="Apple Silicon"
 else
-  [ ! -e "$DIR" ] || die "$DIR already exists and is not a Git checkout."
-  git clone --depth 1 --branch "$REF" "https://github.com/$REPO.git" "$DIR"
+  RID="osx-x64"
+  ARCH="Intel"
 fi
 
-dotnet publish "$DIR/bozo.csproj" -c Release -o "$DIR/publish"
+say "Detected: $MODEL ($ARCH)"
+say "Downloading the matching $RID build source..."
+
+ARCHIVE="$TMP/source.tar.gz"
+curl -fL --retry 3 "https://codeload.github.com/$REPO/tar.gz/refs/heads/$REF" -o "$ARCHIVE"
+mkdir -p "$TMP/source"
+tar -xzf "$ARCHIVE" --strip-components=1 -C "$TMP/source"
+
+command -v dotnet >/dev/null 2>&1 || die ".NET 8 SDK is required to build this version. Install it from https://dot.net and run this command again."
+
+[ ! -e "$DIR" ] || die "$DIR already exists. Move it or set BOZO_DIR to another path."
+mkdir -p "$DIR"
+cp -R "$TMP/source/." "$DIR/"
+
+dotnet publish "$DIR/bozo.csproj" -c Release -r "$RID" --self-contained true -o "$DIR/publish"
 mkdir -p "$HOME/.local/bin" "$HOME/Library/Application Support/bozo"
 cat > "$DIR/bozo" <<WRAPPER
 #!/usr/bin/env bash
-exec dotnet "$DIR/publish/bozo.dll" "\$@"
+exec "$DIR/publish/bozo" "\$@"
 WRAPPER
 chmod +x "$DIR/bozo"
 ln -sf "$DIR/bozo" "$HOME/.local/bin/bozo"
@@ -41,6 +56,7 @@ CONFIG
   chmod 600 "$CONFIG"
 fi
 
-say "Installed. Run: $DIR/bozo"
-say "Configure Discord in: $CONFIG"
+say "Installed for $RID."
+say "Run: $DIR/bozo"
+say "Discord config: $CONFIG"
 say "The bot needs View Channel, Send Messages, Embed Links, and Use External/Message Components permissions."
