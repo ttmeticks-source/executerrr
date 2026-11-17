@@ -11,15 +11,6 @@ permissions:
 jobs:
   build:
     runs-on: macos-14
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - rid: osx-x64
-            asset: bozo-macos-intel.tar.gz
-          - rid: osx-arm64
-            asset: bozo-macos-apple-silicon.tar.gz
-
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -29,16 +20,26 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Publish self-contained single-file app
+      - name: Build Intel release
         run: |
-          dotnet publish bozo.csproj -c Release -r "${{ matrix.rid }}" --self-contained true \
+          dotnet publish bozo.csproj -c Release -r osx-x64 --self-contained true \
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
-            -o publish
-          chmod +x publish/bozo
-          tar -czf "${{ matrix.asset }}" -C publish bozo
+            -o publish-intel
+          chmod +x publish-intel/bozo
+          tar -czf bozo-macos-intel.tar.gz -C publish-intel bozo
 
-      - name: Attach build to GitHub release
+      - name: Build Apple Silicon release
+        run: |
+          dotnet publish bozo.csproj -c Release -r osx-arm64 --self-contained true \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o publish-arm64
+          chmod +x publish-arm64/bozo
+          tar -czf bozo-macos-apple-silicon.tar.gz -C publish-arm64 bozo
+
+      - name: Attach both builds to GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.asset }}
+          files: |
+            bozo-macos-intel.tar.gz
+            bozo-macos-apple-silicon.tar.gz
           generate_release_notes: true
