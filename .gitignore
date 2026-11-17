@@ -1,6 +1,8 @@
 bin/
 obj/
-*.dylib
-.DS_Store
-.vs/
+publish/
 *.user
+*.suo
+.DS_Store
+.env
+config.env
